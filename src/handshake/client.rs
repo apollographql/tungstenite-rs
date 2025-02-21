@@ -132,7 +132,13 @@ pub fn generate_request(mut request: Request) -> Result<(Vec<u8>, String)> {
                 HeaderName::from_bytes(KEY_HEADERNAME.as_bytes()).unwrap(),
             ))
         })?
-        .to_str()?
+        .to_str()
+        .map_err(|err| {
+            Error::Utf8(format!(
+                "{err} for header name '{KEY_HEADERNAME}' with value: {:?}",
+                request.headers().get(KEY_HEADERNAME)
+            ))
+        })?
         .to_owned();
 
     // We must check that all necessary headers for a valid request are present. Note that we have to
@@ -149,7 +155,15 @@ pub fn generate_request(mut request: Request) -> Result<(Vec<u8>, String)> {
                 HeaderName::from_bytes(header.as_bytes()).unwrap(),
             ))
         })?;
-        write!(req, "{header}: {value}\r\n", header = header, value = value.to_str()?).unwrap();
+        write!(
+            req,
+            "{header}: {value}\r\n",
+            header = header,
+            value = value.to_str().map_err(|err| {
+                Error::Utf8(format!("{err} for header name '{header}' with value: {value:?}"))
+            })?
+        )
+        .unwrap();
     }
 
     // Now we must ensure that the headers that we've written once are not anymore present in the map.
@@ -175,8 +189,15 @@ pub fn generate_request(mut request: Request) -> Result<(Vec<u8>, String)> {
         if name == "origin" {
             name = "Origin";
         }
-
-        writeln!(req, "{}: {}\r", name, v.to_str()?).unwrap();
+        writeln!(
+            req,
+            "{}: {}\r",
+            name,
+            v.to_str().map_err(|err| {
+                Error::Utf8(format!("{err} for header name '{name}' with value: {v:?}"))
+            })?
+        )
+        .unwrap();
     }
 
     writeln!(req, "\r").unwrap();
